@@ -1,0 +1,39 @@
+-- MIPS Test Program – TestCase7.mif
+-- Referenced by RAM.vhd (Altera altsyncram init_file).
+--
+-- Program tests: addiu, addu, subu, and, or, sll, beq (taken), sw -> OutPort, j
+-- Expected result: OutPort = 0x0000000F (15 = 5+10)
+--
+-- Word  Addr   Instruction       Assembly                Notes
+--  0    0x00   0x24010005        addiu $1, $0,  5        $1 = 5
+--  1    0x04   0x2402000A        addiu $2, $0, 10        $2 = 10
+--  2    0x08   0x00221821        addu  $3, $1, $2        $3 = 15
+--  3    0x0C   0x00412023        subu  $4, $2, $1        $4 = 5
+--  4    0x10   0x00222824        and   $5, $1, $2        $5 = 0
+--  5    0x14   0x00223025        or    $6, $1, $2        $6 = 15
+--  6    0x18   0x00013880        sll   $7, $1,  2        $7 = 20
+--  7    0x1C   0x10240001        beq   $1, $4, +1        taken (5==5): skip word 8
+--  8    0x20   0x24080063        addiu $8, $0, 99        SKIPPED by beq
+--  9    0x24   0xAC03FFFC        sw    $3, -4($0)        OutPort = 15
+-- 10    0x28   0x08000000        j     0                 loop
+
+DEPTH = 256;
+WIDTH = 32;
+ADDRESS_RADIX = HEX;
+DATA_RADIX = HEX;
+
+CONTENT
+BEGIN
+0  : 24010005;
+1  : 2402000A;
+2  : 00221821;
+3  : 00412023;
+4  : 00222824;
+5  : 00223025;
+6  : 00013880;
+7  : 10240001;
+8  : 24080063;
+9  : AC03FFFC;
+A  : 08000000;
+[B..FF] : 00000000;
+END;

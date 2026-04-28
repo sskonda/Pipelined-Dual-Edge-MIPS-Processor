@@ -242,7 +242,7 @@ architecture Behavioral of MIPS_ctrl is
 
     type state_type is (
         INIT, ADDITIONAL_MEM_WAIT, INST_FETCH, STORE_IN_IR_WAIT,
-        DECODE_REG_FETCH, LW_SW, LW_1, LW_wait, LW_2, LW_wait2, SW,
+        DECODE_REG_FETCH, LW_SW, LW_1, LW_wait, LW_2, SW,
         RTYPE_1, RTYPE_2, RTYPE_MF,
         ALU_IMM_1, ALU_IMM_2,
         BRANCH_CALC, BRANCH_EXEC, BRANCH_WAIT, JUMP
@@ -286,8 +286,7 @@ begin
 
             when LW_SW       => if opcode = "100011" then next_state <= LW_1; else next_state <= SW; end if;
             when LW_1        => next_state <= LW_wait;
-            when LW_wait     => next_state <= LW_wait2;
-            when LW_wait2 => next_state <= LW_2;
+            when LW_wait     => next_state <= LW_2;
             when LW_2        => next_state <= INST_FETCH;
             when SW          => next_state <= ADDITIONAL_MEM_WAIT;
             when ADDITIONAL_MEM_WAIT => next_state <= INST_FETCH;
@@ -311,7 +310,7 @@ begin
         end case;
     end process;
 
-    process(cur_state)
+    process(cur_state, opcode)
     begin
         -- defaults
         PC_writeCond <= '0';
@@ -375,9 +374,6 @@ begin
                 Reg_Write <= '1';
                 Reg_Dst   <= '0';
                 Mem_ToReg <= '1';
-
-            when LW_wait2 => 
-                null;  -- No control signals needed, just wait for memory to finish
 
             when SW =>
                 IorD      <= '1';

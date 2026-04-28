@@ -1,0 +1,57 @@
+v 4
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/MIPS_top_level.vhd" "f14b508cd0983202438e5194cc6fa3f4b2ed9982" "20260427232739.608":
+  entity mips_top_level at 1( 0) + 0 on 225;
+  architecture swiss of mips_top_level at 29( 857) + 0 on 226;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/MIPS_datapath.vhd" "25d07c90c6f579c07f10e75211070c1d0285fe33" "20260427232739.598":
+  entity mips_datapath at 1( 0) + 0 on 221;
+  architecture cheese_grater of mips_datapath at 37( 1040) + 0 on 222;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "sim/RAM.vhd" "6f204e37aba26ee35cbec714c3569f84f010f07b" "20260427232739.589":
+  entity ram at 35( 2202) + 0 on 217;
+  architecture behavioral of ram at 49( 2537) + 0 on 218;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/MIPS_ALU.vhd" "f8ca5e64e0a8ddd43b150f1f8102aa8820edb063" "20260427232739.581":
+  entity mips_alu at 1( 0) + 0 on 213;
+  architecture ricotta of mips_alu at 18( 533) + 0 on 214;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/MIPS_Instruction_Reg.vhd" "e38c719b513c3664dd998a329e1a9cc54b6f92aa" "20260427232739.574":
+  entity instruction_register at 1( 0) + 0 on 209;
+  architecture asiago of instruction_register at 21( 620) + 0 on 210;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/shift_left_concat.vhd" "17eeb384c476bc5a9428fc8cd285d45ab3403be2" "20260427232739.568":
+  entity shift_left_concat at 1( 0) + 0 on 205;
+  architecture cheddar of shift_left_concat at 12( 280) + 0 on 206;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/sign_extend.vhd" "da5fe2c323ccc6a8cd09eaaf2ad4054d1b4f2d5f" "20260427232739.561":
+  entity sign_extend at 1( 0) + 0 on 201;
+  architecture parmesean of sign_extend at 14( 277) + 0 on 202;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/mux_4x1.vhd" "5a6f41f74bbcebe4616c26a081a32f5aa2913e88" "20260427232739.554":
+  entity mux_4x1 at 1( 0) + 0 on 197;
+  architecture gouda of mux_4x1 at 18( 480) + 0 on 198;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/mux2x1.vhd" "1cdce840bf7068874dd4899abdc49ef1174255db" "20260427232739.547":
+  entity mux_2x1 at 1( 0) + 0 on 193;
+  architecture gruyere of mux_2x1 at 16( 369) + 0 on 194;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/MIPS_package.vhd" "f5c13f38da5b517d004836621311f7ad3b7489b5" "20260427232739.542":
+  package mips_package at 1( 0) + 0 on 192;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/mux_3x1.vhd" "f6c6aeca34dc9acbbc1e2032843a761674f5db4e" "20260427232739.551":
+  entity mux_3x1 at 1( 0) + 0 on 195;
+  architecture brie of mux_3x1 at 18( 475) + 0 on 196;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/register_entity.vhd" "3fb16ad67d64c7747701e4875ec28fab0a8d605b" "20260427232739.557":
+  entity reg at 1( 0) + 0 on 199;
+  architecture muenster of reg at 16( 331) + 0 on 200;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/shift_left2.vhd" "d29882c8e86de9a992e2dfad0d00279002ad300f" "20260427232739.565":
+  entity shift_left2 at 1( 0) + 0 on 203;
+  architecture feta of shift_left2 at 13( 245) + 0 on 204;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/decoder7seg.vhd" "0e53934f4176ce2ed0cf4add10b2e2c7d1fe8049" "20260427232739.570":
+  entity decoder7seg at 1( 0) + 0 on 207;
+  architecture bhv of decoder7seg at 10( 198) + 0 on 208;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/registerfile_v2.vhd" "3d5ef155335431f3142c67f0c1322a1986363d34" "20260427232739.577":
+  entity registerfile at 1( 0) + 0 on 211;
+  architecture sync_read of registerfile at 30( 932) + 0 on 212;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/ALU_Control.vhd" "d76c6e4333b9d1d54b64022471ad94ce288e42e6" "20260427232739.586":
+  entity alu_controller at 2( 1) + 0 on 215;
+  architecture mozzarella of alu_controller at 18( 477) + 0 on 216;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/MIPS_memory.vhd" "ac290e57573b20f7f6cf06a75a63b4c6d73e672b" "20260427232739.593":
+  entity mips_memory at 2( 1) + 0 on 219;
+  architecture behavioral of mips_memory at 23( 710) + 0 on 220;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/MIPS_ctrl.vhd" "1e799b24e15a8933cfa74eb0f25a56e4b072dbae" "20260427232739.603":
+  entity mips_ctrl at 1( 0) + 0 on 223;
+  architecture behavioral of mips_ctrl at 241( 8357) + 0 on 224;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "sim/MIPS_full_tb.vhd" "6626a5c4bc381ed0815c49f6a6c65c67c1203994" "20260427232739.613":
+  entity mips_full_tb at 20( 956) + 0 on 227;
+  architecture bench of mips_full_tb at 28( 1089) + 0 on 228;
