@@ -38,12 +38,6 @@ package pipe_pkg;
     logic [31:0] instr;    // raw 32-bit instruction word
   } if_id_t;
 
-  localparam if_id_t IF_ID_NOP = '{
-    valid    : 1'b0,
-    pc_plus4 : 32'd0,
-    instr    : 32'd0   // all-zero = SLL $0,$0,0 = NOP
-  };
-
   // ---------------------------------------------------------------------------
   // ID/EX pipeline register
   // ---------------------------------------------------------------------------
@@ -79,32 +73,6 @@ package pipe_pkg;
     logic        is_jal;     // jal: rd=$31, wr_data=PC+4
   } id_ex_t;
 
-  localparam id_ex_t ID_EX_NOP = '{
-    valid      : 1'b0,
-    pc_plus4   : 32'd0,
-    rs_data    : 32'd0,
-    rt_data    : 32'd0,
-    imm32      : 32'd0,
-    rs         : 5'd0,
-    rt         : 5'd0,
-    rd         : 5'd0,
-    shamt      : 5'd0,
-    alu_op     : ALU_NOP,
-    alu_src_b  : 1'b0,
-    alu_lo_hi  : 2'b00,
-    hi_write   : 1'b0,
-    lo_write   : 1'b0,
-    mem_read   : 1'b0,
-    mem_write  : 1'b0,
-    reg_write  : 1'b0,
-    mem_to_reg : 1'b0,
-    branch     : 1'b0,
-    branch_type: 3'd0,
-    jump       : 1'b0,
-    jump_reg   : 1'b0,
-    is_jal     : 1'b0
-  };
-
   // ---------------------------------------------------------------------------
   // EX/MEM pipeline register
   // ---------------------------------------------------------------------------
@@ -130,25 +98,6 @@ package pipe_pkg;
     logic [31:0] pc_target;     // new PC if branch/jump taken
   } ex_mem_t;
 
-  localparam ex_mem_t EX_MEM_NOP = '{
-    valid         : 1'b0,
-    pc_plus4      : 32'd0,
-    alu_result    : 32'd0,
-    alu_result_hi : 32'd0,
-    rt_fwd        : 32'd0,
-    rd            : 5'd0,
-    mem_read      : 1'b0,
-    mem_write     : 1'b0,
-    reg_write     : 1'b0,
-    mem_to_reg    : 1'b0,
-    hi_write      : 1'b0,
-    lo_write      : 1'b0,
-    is_load       : 1'b0,
-    take_branch   : 1'b0,
-    take_jump     : 1'b0,
-    pc_target     : 32'd0
-  };
-
   // ---------------------------------------------------------------------------
   // MEM/WB pipeline register
   // ---------------------------------------------------------------------------
@@ -161,16 +110,6 @@ package pipe_pkg;
     logic        hi_write;
     logic        lo_write;
   } mem_wb_t;
-
-  localparam mem_wb_t MEM_WB_NOP = '{
-    valid      : 1'b0,
-    wr_data    : 32'd0,
-    wr_data_hi : 32'd0,
-    rd         : 5'd0,
-    reg_write  : 1'b0,
-    hi_write   : 1'b0,
-    lo_write   : 1'b0
-  };
 
   // ---------------------------------------------------------------------------
   // Ready/valid per-stage bundle (for external monitoring / backpressure)

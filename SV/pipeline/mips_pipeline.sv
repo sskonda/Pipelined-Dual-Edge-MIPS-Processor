@@ -1,22 +1,22 @@
 // =============================================================================
-// mips_pipeline.sv  –  5-stage pipelined MIPS CPU
+// mips_pipeline.sv  --  5-stage pipelined MIPS CPU
 //
-//  Stage │ Function
-//  ──────┼──────────────────────────────────────────────────────────────────
-//   IF   │ Fetch instruction from IMEM at PC, compute PC+4
-//   ID   │ Decode instruction, read register file, sign-extend immediate,
-//         │ generate all control signals for downstream stages
-//   EX   │ Execute ALU op, resolve branch/jump, apply forwarding
-//   MEM  │ Data-memory read (LW) or write (SW), pass-through for others
-//   WB   │ Write result back to register file, update HI/LO
+//  Stage | Function
+//  ------+----------------------------------------------------------------------
+//   IF   | Fetch instruction from IMEM at PC, compute PC+4
+//   ID   | Decode instruction, read register file, sign-extend immediate,
+//         | generate all control signals for downstream stages
+//   EX   | Execute ALU op, resolve branch/jump, apply forwarding
+//   MEM  | Data-memory read (LW) or write (SW), pass-through for others
+//   WB   | Write result back to register file, update HI/LO
 //
-// ── Hazard protection ──────────────────────────────────────────────────────
+// -- Hazard protection --------------------------------------------------------
 //  Load-use stall:   EX stage is a load (LW) and its destination register
 //                    matches a source of the instruction currently in ID.
 //                    Action: hold PC and IF/ID, insert bubble into ID/EX
 //                    (one-cycle stall).
 //
-//  mult→mfhi/mflo:   When mult/multu is in EX and the ID stage is decoding
+//  mult->mfhi/mflo:  When mult/multu is in EX and the ID stage is decoding
 //                    mfhi or mflo, stall ID one cycle so that HI/LO are
 //                    written before they are read.
 //
@@ -24,21 +24,19 @@
 //                    jump is decoded, the two younger wrong-path instructions
 //                    in IF and ID are flushed (their valid bits cleared).
 //
-// ── Forwarding ─────────────────────────────────────────────────────────────
-//  EX/MEM  → EX  :  Forward ALU result to EX input A or B when the previous
+// -- Forwarding ---------------------------------------------------------------
+//  EX/MEM  -> EX  :  Forward ALU result to EX input A or B when the previous
 //                    instruction wrote a GPR that EX needs to read.
-//  MEM/WB  → EX  :  Forward write-back data (ALU or load data) when the
+//  MEM/WB  -> EX  :  Forward write-back data (ALU or load data) when the
 //                    instruction two cycles earlier wrote a GPR that EX needs.
 //  $0 forwarding is never asserted (wr_reg == 5'b0 guard).
 //
-// ── Ready/Valid ────────────────────────────────────────────────────────────
-//  Each pipeline register carries a valid bit.  An invalid register entry
-//  must not commit any side effect (RegWrite, MemWrite, branch, jump).
-//  Stall signals implement backpressure:
-//    stall_if → hold PC and IF/ID register
-//    stall_id → hold ID/EX register (re-decode same instruction)
-//    bubble_ex → force ID/EX to NOP instead of advancing
-//  When no stall or flush: every stage advances on every clock edge.
+// -- iverilog compatibility note ----------------------------------------------
+//  iverilog 12 does not support struct field selects inside always_* blocks
+//  ("sorry: constant selects in always_* processes not currently supported").
+//  Work-around: all struct fields read inside always_comb are exposed through
+//  plain wire aliases declared with continuous assign.  The always_ff blocks
+//  are unaffected and access struct fields directly.
 // =============================================================================
 module mips_pipeline
   import MIPS_package::*;
@@ -57,13 +55,13 @@ module mips_pipeline
   output logic [31:0] dbg_instr   // instruction in ID stage
 );
 
-  // ── Structural hazard note ────────────────────────────────────────────────
+  // -- Structural hazard note -------------------------------------------------
   // Harvard architecture: IMEM and DMEM are separate.  There is NO structural
   // hazard between the IF and MEM stages.
 
-  // =========================================================================
+  // ===========================================================================
   // Signal declarations
-  // =========================================================================
+  // ===========================================================================
 
   // PC
   logic [31:0] pc_reg, pc_next;
@@ -82,9 +80,9 @@ module mips_pipeline
   logic [31:0] HI_reg, LO_reg;
 
   // Hazard / stall / flush signals
-  logic stall_if;   // hold PC and IF/ID
-  logic stall_id;   // hold ID/EX (re-present same instruction to EX)
-  logic bubble_ex;  // force ID/EX → NOP next cycle
+  logic stall_if;    // hold PC and IF/ID
+  logic stall_id;    // hold ID/EX (re-present same instruction to EX)
+  logic bubble_ex;   // force ID/EX -> NOP next cycle
   logic flush_if_id; // clear IF/ID valid
   logic flush_id_ex; // clear ID/EX valid
 
@@ -107,6 +105,9 @@ module mips_pipeline
   logic [4:0]  id_shamt;
   logic [31:0] id_rs_data, id_rt_data;
   logic        id_use_hi, id_use_lo; // mfhi/mflo: read HI/LO instead of GPR
+
+  // Raw register-file read output for rs before HI/LO override
+  logic [31:0] rf_rs_data;
 
   // EX stage internal signals
   logic [31:0] ex_alu_a, ex_alu_b, ex_alu_b_pre;
@@ -131,9 +132,56 @@ module mips_pipeline
   // InPort construction from switches/buttons
   logic [31:0] in_port0, in_port1;
 
-  // =========================================================================
+  // ===========================================================================
+  // Alias wires: expose pipeline-register fields for use in always_comb.
+  // iverilog 12 silently mis-simulates struct field selects inside always_*;
+  // plain wire aliases via continuous assign are fully supported.
+  // ===========================================================================
+
+  // IF/ID aliases
+  wire [31:0] ifi_instr = if_id_reg.instr;
+  wire        ifi_valid = if_id_reg.valid;
+
+  // ID/EX aliases
+  wire        ide_valid     = id_ex_reg.valid;
+  wire [31:0] ide_pc_plus4  = id_ex_reg.pc_plus4;
+  wire [31:0] ide_rs_data   = id_ex_reg.rs_data;
+  wire [31:0] ide_rt_data   = id_ex_reg.rt_data;
+  wire [31:0] ide_imm32     = id_ex_reg.imm32;
+  wire [4:0]  ide_rs        = id_ex_reg.rs;
+  wire [4:0]  ide_rt        = id_ex_reg.rt;
+  wire [4:0]  ide_rd        = id_ex_reg.rd;
+  wire [4:0]  ide_shamt     = id_ex_reg.shamt;
+  wire [4:0]  ide_alu_op    = id_ex_reg.alu_op;
+  wire        ide_alu_src_b = id_ex_reg.alu_src_b;
+  wire        ide_mem_read  = id_ex_reg.mem_read;
+  wire        ide_hi_write  = id_ex_reg.hi_write;
+  wire        ide_lo_write  = id_ex_reg.lo_write;
+  wire        ide_branch    = id_ex_reg.branch;
+  wire        ide_jump      = id_ex_reg.jump;
+  wire        ide_jump_reg  = id_ex_reg.jump_reg;
+
+  // EX/MEM aliases
+  wire        exm_valid       = ex_mem_reg.valid;
+  wire [31:0] exm_alu_result  = ex_mem_reg.alu_result;
+  wire [4:0]  exm_rd          = ex_mem_reg.rd;
+  wire        exm_reg_write   = ex_mem_reg.reg_write;
+  wire        exm_mem_to_reg  = ex_mem_reg.mem_to_reg;
+  wire        exm_is_load     = ex_mem_reg.is_load;
+  wire        exm_lo_write    = ex_mem_reg.lo_write;
+  wire        exm_take_branch = ex_mem_reg.take_branch;
+  wire        exm_take_jump   = ex_mem_reg.take_jump;
+  wire [31:0] exm_pc_target   = ex_mem_reg.pc_target;
+
+  // MEM/WB aliases
+  wire        mwb_valid     = mem_wb_reg.valid;
+  wire [31:0] mwb_wr_data   = mem_wb_reg.wr_data;
+  wire [4:0]  mwb_rd        = mem_wb_reg.rd;
+  wire        mwb_reg_write = mem_wb_reg.reg_write;
+
+  // ===========================================================================
   // Support module instantiations
-  // =========================================================================
+  // ===========================================================================
 
   pipe_imem imem (
     .addr  (pc_reg[9:2]),
@@ -147,7 +195,7 @@ module mips_pipeline
     .mem_read  (ex_mem_reg.mem_read  & ex_mem_reg.valid),
     .mem_write (ex_mem_reg.mem_write & ex_mem_reg.valid),
     .rd_data   (mem_rd_data),
-    .mem_ready (),                  // always 1 — unused
+    .mem_ready (),                  // always 1 -- unused
     .in_port0  (in_port0),
     .in_port1  (in_port1),
     .out_port  (out_port)
@@ -161,7 +209,7 @@ module mips_pipeline
     .wr_data  (wb_wr_data),
     .rd_addr0 (if_id_reg.instr[25:21]), // rs
     .rd_addr1 (if_id_reg.instr[20:16]), // rt
-    .rd_data0 (id_rs_data),
+    .rd_data0 (rf_rs_data),   // raw rs read (may be overridden by HI/LO in ID)
     .rd_data1 (id_rt_data)
   );
 
@@ -169,15 +217,13 @@ module mips_pipeline
   assign in_port0 = {23'b0, switches[8:0]};
   assign in_port1 = {23'b0, switches[8:0]};
 
-  // =========================================================================
-  // WB stage — wire writeback before pipeline registers so RF has it combinatorially
-  // =========================================================================
-  always_comb begin
-    wb_wr_addr = mem_wb_reg.rd;
-    wb_wr_en   = mem_wb_reg.reg_write & mem_wb_reg.valid;
-    // JAL: wr_data is already PC+4 stored in wr_data (set in MEM/WB)
-    wb_wr_data = mem_wb_reg.wr_data;
-  end
+  // ===========================================================================
+  // WB stage -- wire writeback before pipeline registers so RF has it combinatorially
+  // (converted from always_comb to assign to avoid iverilog struct-select issue)
+  // ===========================================================================
+  assign wb_wr_addr = mwb_rd;
+  assign wb_wr_en   = mwb_reg_write & mwb_valid;
+  assign wb_wr_data = mwb_wr_data;
 
   // HI/LO registers written at end of WB stage
   always_ff @(posedge clk or posedge rst) begin
@@ -192,9 +238,9 @@ module mips_pipeline
     end
   end
 
-  // =========================================================================
-  // ID stage — instruction decode and control generation
-  // =========================================================================
+  // ===========================================================================
+  // ID stage -- instruction decode and control generation
+  // ===========================================================================
   always_comb begin
     // Defaults (safe/inactive values)
     id_alu_op      = ALU_NOP;
@@ -215,24 +261,22 @@ module mips_pipeline
     id_use_hi      = 1'b0;
     id_use_lo      = 1'b0;
 
-    // Decode fields
-    id_rs    = if_id_reg.instr[25:21];
-    id_rt    = if_id_reg.instr[20:16];
-    id_rd    = if_id_reg.instr[15:11]; // default for R-type
-    id_shamt = if_id_reg.instr[10:6];
+    // Decode fields (use ifi_instr alias -- plain wire bit-selects are ok)
+    id_rs    = ifi_instr[25:21];
+    id_rt    = ifi_instr[20:16];
+    id_rd    = ifi_instr[15:11]; // default for R-type
+    id_shamt = ifi_instr[10:6];
 
-    // Sign/zero-extend immediate
-    // Default: sign-extend
+    // Default: sign-extend immediate
     id_is_signed = 1'b1;
 
-    case (if_id_reg.instr[31:26]) // opcode
-
-      // ─────────────────────────────────────────────────────────────────────
+    case (ifi_instr[31:26]) // opcode
+      // -----------------------------------------------------------------------
       // R-type (opcode = 0)
-      // ─────────────────────────────────────────────────────────────────────
+      // -----------------------------------------------------------------------
       R_OP: begin
-        id_rd = if_id_reg.instr[15:11]; // rd field
-        case (if_id_reg.instr[5:0]) // funct
+        id_rd = ifi_instr[15:11]; // rd field
+        case (ifi_instr[5:0]) // funct
           R_FUNC_ADDU: begin id_alu_op=ALU_ADD_unsign; id_reg_write=1'b1; end
           R_FUNC_SUBU: begin id_alu_op=ALU_SUB_unsign; id_reg_write=1'b1; end
           R_FUNC_AND:  begin id_alu_op=ALU_AND;         id_reg_write=1'b1; end
@@ -274,62 +318,62 @@ module mips_pipeline
         endcase
       end
 
-      // ─────────────────────────────────────────────────────────────────────
+      // -----------------------------------------------------------------------
       // I-type arithmetic and logical
-      // ─────────────────────────────────────────────────────────────────────
+      // -----------------------------------------------------------------------
       I_ADDIU: begin
         id_alu_op    = ALU_ADD_unsign;
         id_alu_src_b = 1'b1; // immediate
         id_is_signed = 1'b1;
         id_reg_write = 1'b1;
-        id_rd        = if_id_reg.instr[20:16]; // destination = rt
+        id_rd        = ifi_instr[20:16]; // destination = rt
       end
       I_ANDI: begin
         id_alu_op    = ALU_AND;
         id_alu_src_b = 1'b1;
         id_is_signed = 1'b0; // zero-extend
         id_reg_write = 1'b1;
-        id_rd        = if_id_reg.instr[20:16];
+        id_rd        = ifi_instr[20:16];
       end
       I_ORI: begin
         id_alu_op    = ALU_OR;
         id_alu_src_b = 1'b1;
         id_is_signed = 1'b0;
         id_reg_write = 1'b1;
-        id_rd        = if_id_reg.instr[20:16];
+        id_rd        = ifi_instr[20:16];
       end
       I_XORI: begin
         id_alu_op    = ALU_XOR;
         id_alu_src_b = 1'b1;
         id_is_signed = 1'b0;
         id_reg_write = 1'b1;
-        id_rd        = if_id_reg.instr[20:16];
+        id_rd        = ifi_instr[20:16];
       end
       I_SLTI: begin
         id_alu_op    = ALU_comp_A_lt_B_sign;
         id_alu_src_b = 1'b1;
         id_is_signed = 1'b1;
         id_reg_write = 1'b1;
-        id_rd        = if_id_reg.instr[20:16];
+        id_rd        = ifi_instr[20:16];
       end
       I_SLTIU: begin
         id_alu_op    = ALU_comp_A_lt_B_unsign;
         id_alu_src_b = 1'b1;
         id_is_signed = 1'b0;
         id_reg_write = 1'b1;
-        id_rd        = if_id_reg.instr[20:16];
+        id_rd        = ifi_instr[20:16];
       end
       I_SUBIU: begin
         id_alu_op    = ALU_SUB_unsign;
         id_alu_src_b = 1'b1;
         id_is_signed = 1'b1;
         id_reg_write = 1'b1;
-        id_rd        = if_id_reg.instr[20:16];
+        id_rd        = ifi_instr[20:16];
       end
 
-      // ─────────────────────────────────────────────────────────────────────
+      // -----------------------------------------------------------------------
       // Load / Store
-      // ─────────────────────────────────────────────────────────────────────
+      // -----------------------------------------------------------------------
       6'b100011: begin // LW
         id_alu_op    = ALU_ADD_unsign; // address = rs + sign_ext(imm)
         id_alu_src_b = 1'b1;
@@ -337,7 +381,7 @@ module mips_pipeline
         id_mem_read  = 1'b1;
         id_reg_write = 1'b1;
         id_mem_to_reg= 1'b1;
-        id_rd        = if_id_reg.instr[20:16]; // destination = rt
+        id_rd        = ifi_instr[20:16]; // destination = rt
       end
       6'b101011: begin // SW
         id_alu_op    = ALU_ADD_unsign; // address = rs + sign_ext(imm)
@@ -347,9 +391,9 @@ module mips_pipeline
         // no reg_write
       end
 
-      // ─────────────────────────────────────────────────────────────────────
+      // -----------------------------------------------------------------------
       // Branch instructions (comparison performed in EX with ALU)
-      // ─────────────────────────────────────────────────────────────────────
+      // -----------------------------------------------------------------------
       I_BEQ: begin
         id_branch      = 1'b1;
         id_branch_type = BR_BEQ;
@@ -375,10 +419,10 @@ module mips_pipeline
         id_alu_op      = ALU_A_gt_0;
         id_is_signed   = 1'b1;
       end
-      I_REGIMM: begin // bltz / bgez — rt field selects which
+      I_REGIMM: begin // bltz / bgez -- rt field selects which
         id_branch    = 1'b1;
         id_is_signed = 1'b1;
-        if (if_id_reg.instr[20:16] == 5'd0) begin // bltz
+        if (ifi_instr[20:16] == 5'd0) begin // bltz
           id_alu_op      = ALU_A_lt_0;
           id_branch_type = BR_BLTZ;
         end else begin // bgez (rt = 1)
@@ -387,9 +431,9 @@ module mips_pipeline
         end
       end
 
-      // ─────────────────────────────────────────────────────────────────────
+      // -----------------------------------------------------------------------
       // Jump instructions
-      // ─────────────────────────────────────────────────────────────────────
+      // -----------------------------------------------------------------------
       J_JUMP: begin
         id_jump = 1'b1;
       end
@@ -400,64 +444,61 @@ module mips_pipeline
         id_rd        = 5'd31; // $ra
       end
 
-      default: ; // undefined opcode → NOP (all defaults)
+      default: ; // undefined opcode -> NOP (all defaults)
     endcase
 
     // Sign/zero extend immediate
     if (id_is_signed)
-      id_imm32 = {{16{if_id_reg.instr[15]}}, if_id_reg.instr[15:0]};
+      id_imm32 = {{16{ifi_instr[15]}}, ifi_instr[15:0]};
     else
-      id_imm32 = {16'd0, if_id_reg.instr[15:0]};
+      id_imm32 = {16'd0, ifi_instr[15:0]};
 
     // Override rs_data with HI or LO for mfhi/mflo
     // (Forwarding for HI/LO is not implemented; a 1-cycle stall is inserted
     //  by the hazard unit when mult is still in EX.)
     if (id_use_hi)
-      id_rs_data = HI_reg; // read from RF is overridden
+      id_rs_data = HI_reg;
     else if (id_use_lo)
       id_rs_data = LO_reg;
-    // else id_rs_data comes from pipe_regfile (combinatorial)
-    // Note: id_rs_data declared as output of pipe_regfile and overridden
+    else
+      id_rs_data = rf_rs_data; // normal GPR read from register file
   end
 
-  // Effective rs_data going into ID/EX (mux between RF output and HI/LO)
-  // The actual mux is in the always_ff for id_ex_reg.
-
-  // =========================================================================
+  // ===========================================================================
   // HAZARD DETECTION UNIT  (combinatorial)
-  // =========================================================================
+  // ===========================================================================
   // Inputs:  id_ex_reg (EX stage), if_id_reg (ID stage)
   // Outputs: stall_if, stall_id, bubble_ex, flush_if_id, flush_id_ex
   //
   // Priority: branch/jump flush > load-use stall > mult-stall
   always_comb begin
-    stall_if   = 1'b0;
-    stall_id   = 1'b0;
-    bubble_ex  = 1'b0;
+    stall_if    = 1'b0;
+    stall_id    = 1'b0;
+    bubble_ex   = 1'b0;
     flush_if_id = 1'b0;
     flush_id_ex = 1'b0;
 
-    // ── Load-use stall ─────────────────────────────────────────────────────
+    // -- Load-use stall -------------------------------------------------------
     // EX stage is a load (LW) and its destination is read by the current ID.
     // Only stall if the load destination is a real register ($0 is always 0).
-    if (id_ex_reg.mem_read && id_ex_reg.valid &&
-        id_ex_reg.rd != 5'd0 &&
-        (id_ex_reg.rd == if_id_reg.instr[25:21] || // rs
-         id_ex_reg.rd == if_id_reg.instr[20:16])) // rt
+    if (ide_mem_read && ide_valid &&
+        ide_rd != 5'd0 &&
+        (ide_rd == ifi_instr[25:21] || // rs
+         ide_rd == ifi_instr[20:16]))  // rt
     begin
       stall_if  = 1'b1; // hold PC
       stall_id  = 1'b1; // hold IF/ID (re-decode after bubble clears)
       bubble_ex = 1'b1; // insert NOP into ID/EX
     end
 
-    // ── mult → mfhi/mflo stall ─────────────────────────────────────────────
+    // -- mult -> mfhi/mflo stall ----------------------------------------------
     // EX stage is mult/multu (hi_write or lo_write) and ID is mfhi/mflo.
     // HI/LO are written in WB; stall until the mult has committed.
-    if (id_ex_reg.valid && (id_ex_reg.hi_write | id_ex_reg.lo_write) &&
-        if_id_reg.valid &&
-        if_id_reg.instr[31:26] == R_OP &&
-        (if_id_reg.instr[5:0] == R_FUNC_MFHI ||
-         if_id_reg.instr[5:0] == R_FUNC_MFLO))
+    if (ide_valid && (ide_hi_write | ide_lo_write) &&
+        ifi_valid &&
+        ifi_instr[31:26] == R_OP &&
+        (ifi_instr[5:0] == R_FUNC_MFHI ||
+         ifi_instr[5:0] == R_FUNC_MFLO))
     begin
       // Only stall when mult is in EX (one cycle gap needed)
       stall_if  = 1'b1;
@@ -465,13 +506,11 @@ module mips_pipeline
       bubble_ex = 1'b1;
     end
 
-    // ── Branch / jump flush ────────────────────────────────────────────────
+    // -- Branch / jump flush --------------------------------------------------
     // Branch resolution is in EX.  When a branch/jump is taken, the two
     // instructions fetched after the branch (currently in ID and IF) are
-    // wrong-path → flush them.
-    // (stall takes priority only in the first condition; flush can override
-    //  the stall flags because wrong-path instructions must be discarded.)
-    if (ex_mem_reg.valid && (ex_mem_reg.take_branch | ex_mem_reg.take_jump)) begin
+    // wrong-path -> flush them.
+    if (exm_valid && (exm_take_branch | exm_take_jump)) begin
       flush_if_id = 1'b1; // discard whatever is in IF/ID
       flush_id_ex = 1'b1; // discard whatever is in ID/EX
       // Override any load-use stall that would hold IF/ID
@@ -481,58 +520,57 @@ module mips_pipeline
     end
   end
 
-  // =========================================================================
-  // EX stage — forwarding unit (combinatorial)
-  // =========================================================================
+  // ===========================================================================
+  // EX stage -- forwarding unit (combinatorial)
+  // ===========================================================================
   always_comb begin
     fwd_a = FWD_ID;
     fwd_b = FWD_ID;
 
     // Forward to input A (rs)
     // Priority: EX/MEM before MEM/WB (more recent data wins)
-    if (ex_mem_reg.valid && ex_mem_reg.reg_write &&
-        ex_mem_reg.rd != 5'd0 && ex_mem_reg.rd == id_ex_reg.rs)
+    if (exm_valid && exm_reg_write &&
+        exm_rd != 5'd0 && exm_rd == ide_rs)
       fwd_a = FWD_EXM;
-    else if (mem_wb_reg.valid && mem_wb_reg.reg_write &&
-             mem_wb_reg.rd != 5'd0 && mem_wb_reg.rd == id_ex_reg.rs)
+    else if (mwb_valid && mwb_reg_write &&
+             mwb_rd != 5'd0 && mwb_rd == ide_rs)
       fwd_a = FWD_MWB;
 
-    // Forward to input B (rt) — only when alu_src_b = 0 (register operand)
-    if (ex_mem_reg.valid && ex_mem_reg.reg_write &&
-        ex_mem_reg.rd != 5'd0 && ex_mem_reg.rd == id_ex_reg.rt)
+    // Forward to input B (rt) -- only when alu_src_b = 0 (register operand)
+    if (exm_valid && exm_reg_write &&
+        exm_rd != 5'd0 && exm_rd == ide_rt)
       fwd_b = FWD_EXM;
-    else if (mem_wb_reg.valid && mem_wb_reg.reg_write &&
-             mem_wb_reg.rd != 5'd0 && mem_wb_reg.rd == id_ex_reg.rt)
+    else if (mwb_valid && mwb_reg_write &&
+             mwb_rd != 5'd0 && mwb_rd == ide_rt)
       fwd_b = FWD_MWB;
   end
 
-  // =========================================================================
-  // EX stage — ALU and branch/jump resolution (combinatorial)
-  // =========================================================================
+  // ===========================================================================
+  // EX stage -- ALU and branch/jump resolution (combinatorial)
+  // ===========================================================================
   always_comb begin
-    // ── Apply forwarding to rs (ALU input A) ─────────────────────────────
+    // -- Apply forwarding to rs (ALU input A) ---------------------------------
     unique case (fwd_a)
-      FWD_EXM: ex_alu_a = ex_mem_reg.alu_result;
-      FWD_MWB: ex_alu_a = mem_wb_reg.wr_data;
-      default: ex_alu_a = id_ex_reg.rs_data;
+      FWD_EXM: ex_alu_a = exm_alu_result;
+      FWD_MWB: ex_alu_a = mwb_wr_data;
+      default: ex_alu_a = ide_rs_data;
     endcase
 
-    // ── Apply forwarding to rt (register operand, before imm mux) ────────
+    // -- Apply forwarding to rt (register operand, before imm mux) -----------
     unique case (fwd_b)
-      FWD_EXM: ex_rt_fwd = ex_mem_reg.alu_result;
-      FWD_MWB: ex_rt_fwd = mem_wb_reg.wr_data;
-      default: ex_rt_fwd = id_ex_reg.rt_data;
+      FWD_EXM: ex_rt_fwd = exm_alu_result;
+      FWD_MWB: ex_rt_fwd = mwb_wr_data;
+      default: ex_rt_fwd = ide_rt_data;
     endcase
 
     // ALU input B mux: register or sign-extended immediate
-    ex_alu_b_pre = id_ex_reg.alu_src_b ? id_ex_reg.imm32 : ex_rt_fwd;
+    ex_alu_b_pre = ide_alu_src_b ? ide_imm32 : ex_rt_fwd;
 
     // For shift instructions the shamt comes from IR[10:6] (in the ID/EX
-    // register), not from the register file.  The ALU uses sel=01011 or
-    // 01010 and reads the shamt from the IR field passed separately.
+    // register), not from the register file.
     ex_alu_b = ex_alu_b_pre;
 
-    // ── ALU operation ──────────────────────────────────────────────────────
+    // -- ALU operation --------------------------------------------------------
     // Inline ALU logic (mirrors MIPS_ALU.sv) to avoid an extra module port.
     // Signed / unsigned products computed combinatorially.
     begin : alu_block
@@ -545,7 +583,7 @@ module mips_pipeline
       ex_alu_result_hi = 32'd0;
       ex_branch_taken  = 1'b0;
 
-      case (id_ex_reg.alu_op)
+      case (ide_alu_op)
         ALU_ADD_unsign: ex_alu_result = ex_alu_a + ex_alu_b;
         ALU_ADD_sign:   ex_alu_result = $signed(ex_alu_a) + $signed(ex_alu_b);
         ALU_SUB_unsign: ex_alu_result = ex_alu_a - ex_alu_b;
@@ -562,9 +600,9 @@ module mips_pipeline
         ALU_OR:   ex_alu_result = ex_alu_a | ex_alu_b;
         ALU_XOR:  ex_alu_result = ex_alu_a ^ ex_alu_b;
         ALU_NOT_A:ex_alu_result = ~ex_alu_a;
-        ALU_LOG_SHIFT_R:   ex_alu_result = ex_alu_b >> id_ex_reg.shamt;
-        ALU_LOG_SHIFT_L:   ex_alu_result = ex_alu_b << id_ex_reg.shamt;
-        ALU_ARITH_SHIFT_R: ex_alu_result = $signed(ex_alu_b) >>> id_ex_reg.shamt;
+        ALU_LOG_SHIFT_R:   ex_alu_result = ex_alu_b >> ide_shamt;
+        ALU_LOG_SHIFT_L:   ex_alu_result = ex_alu_b << ide_shamt;
+        ALU_ARITH_SHIFT_R: ex_alu_result = $signed(ex_alu_b) >>> ide_shamt;
         ALU_comp_A_lt_B_unsign: ex_alu_result = (ex_alu_a < ex_alu_b) ? 32'd1 : 32'd0;
         ALU_comp_A_lt_B_sign:   ex_alu_result = ($signed(ex_alu_a) < $signed(ex_alu_b)) ? 32'd1 : 32'd0;
         ALU_A_gt_0:  ex_branch_taken = ($signed(ex_alu_a) >  0);
@@ -584,71 +622,68 @@ module mips_pipeline
       endcase
     end
 
-    // ── JAL: writeback value is PC+4 (override alu_result in WB) ──────────
-    // The ALU result for JAL is not used; wr_data is set to PC+4 in MEM/WB.
-
-    // ── Branch/Jump target computation ─────────────────────────────────────
+    // -- Branch/Jump target computation ---------------------------------------
     // Branch target  = PC+4 + sign_ext(imm16) * 4  = PC+4 + imm32<<2
-    ex_branch_target = id_ex_reg.pc_plus4 + {id_ex_reg.imm32[29:0], 2'b00};
+    ex_branch_target = ide_pc_plus4 + {ide_imm32[29:0], 2'b00};
 
     // Jump target    = {PC+4[31:28], IR[25:0], 2'b00}
-    ex_jump_target   = {id_ex_reg.pc_plus4[31:28], id_ex_reg.imm32[25:0], 2'b00};
+    ex_jump_target   = {ide_pc_plus4[31:28], ide_imm32[25:0], 2'b00};
     // Note: imm32 was zero-extended from the 26-bit jump field in ID stage.
-    // For j/jal: id_imm32 = {6'b0, IR[25:0]} → [25:0] == IR[25:0]. ✓
+    // For j/jal: id_imm32 = {6'b0, IR[25:0]} -> [25:0] == IR[25:0]. ok
 
     // JR target = forwarded rs_data
     ex_jr_target = ex_alu_a; // rs forwarded through fwd_a mux
 
-    // ── Effective branch/jump decision ─────────────────────────────────────
+    // -- Effective branch/jump decision ---------------------------------------
     // An invalid ID/EX entry must never take a branch or jump
     // (it could be a bubble or flushed instruction).
-    ex_take_branch = id_ex_reg.valid && id_ex_reg.branch && ex_branch_taken;
-    ex_take_jump   = id_ex_reg.valid && id_ex_reg.jump;
+    ex_take_branch = ide_valid && ide_branch && ex_branch_taken;
+    ex_take_jump   = ide_valid && ide_jump;
 
     unique case (1'b1)
-      ex_take_jump && id_ex_reg.jump_reg: ex_pc_target = ex_jr_target;
-      ex_take_jump:                        ex_pc_target = ex_jump_target;
-      ex_take_branch:                      ex_pc_target = ex_branch_target;
-      default:                             ex_pc_target = 32'd0; // unused
+      ex_take_jump && ide_jump_reg: ex_pc_target = ex_jr_target;
+      ex_take_jump:                 ex_pc_target = ex_jump_target;
+      ex_take_branch:               ex_pc_target = ex_branch_target;
+      default:                      ex_pc_target = 32'd0; // unused
     endcase
   end
 
-  // =========================================================================
-  // MEM stage — pass-through for non-memory instructions (combinatorial)
-  // =========================================================================
+  // ===========================================================================
+  // MEM stage -- pass-through for non-memory instructions (combinatorial)
+  // ===========================================================================
   always_comb begin
     // rd_data from pipe_dmem is used if mem_to_reg, else ALU result
-    if (ex_mem_reg.mem_to_reg)
+    if (exm_mem_to_reg)
       mem_wr_data = mem_rd_data; // LW: load from data memory
-    else if (ex_mem_reg.is_load & ~ex_mem_reg.mem_to_reg)
-      mem_wr_data = ex_mem_reg.alu_result; // shouldn't happen but safe
-    else if (ex_mem_reg.valid && ex_mem_reg.is_load == 1'b0 && ex_mem_reg.lo_write == 1'b0)
+    else if (exm_is_load & ~exm_mem_to_reg)
+      mem_wr_data = exm_alu_result; // shouldn't happen but safe
+    else if (exm_valid && exm_is_load == 1'b0 && exm_lo_write == 1'b0)
       // JAL: if JAL, wr_data = PC+4 (stored in pc_plus4 field)
       // This is handled below in MEM/WB register update
-      mem_wr_data = ex_mem_reg.alu_result;
+      mem_wr_data = exm_alu_result;
     else
-      mem_wr_data = ex_mem_reg.alu_result;
+      mem_wr_data = exm_alu_result;
   end
 
-  // =========================================================================
+  // ===========================================================================
   // PC update logic (combinatorial)
-  // =========================================================================
+  // ===========================================================================
   always_comb begin
     if_pc_plus4 = pc_reg + 32'd4;
 
-    if (ex_mem_reg.valid && (ex_mem_reg.take_branch || ex_mem_reg.take_jump))
-      pc_next = ex_mem_reg.pc_target;
+    if (exm_valid && (exm_take_branch || exm_take_jump))
+      pc_next = exm_pc_target;
     else if (!stall_if)
       pc_next = if_pc_plus4;
     else
       pc_next = pc_reg; // hold
   end
 
-  // =========================================================================
+  // ===========================================================================
   // Pipeline register sequential logic
-  // =========================================================================
+  // ===========================================================================
 
-  // ── PC register ───────────────────────────────────────────────────────────
+  // -- PC register ------------------------------------------------------------
   always_ff @(posedge clk or posedge rst) begin
     if (rst)
       pc_reg <= 32'd0;
@@ -656,26 +691,26 @@ module mips_pipeline
       pc_reg <= pc_next;
   end
 
-  // ── IF/ID register ────────────────────────────────────────────────────────
+  // -- IF/ID register ---------------------------------------------------------
   always_ff @(posedge clk or posedge rst) begin
     if (rst) begin
-      if_id_reg <= IF_ID_NOP;
+      if_id_reg <= '0;
     end else if (flush_if_id) begin
-      if_id_reg <= IF_ID_NOP; // discard wrong-path instruction
+      if_id_reg <= '0; // discard wrong-path instruction
     end else if (!stall_if) begin
       if_id_reg.valid    <= 1'b1;
       if_id_reg.pc_plus4 <= if_pc_plus4;
       if_id_reg.instr    <= if_instr;
     end
-    // else: stall → hold current IF/ID value
+    // else: stall -> hold current IF/ID value
   end
 
-  // ── ID/EX register ────────────────────────────────────────────────────────
+  // -- ID/EX register ---------------------------------------------------------
   always_ff @(posedge clk or posedge rst) begin
     if (rst) begin
-      id_ex_reg <= ID_EX_NOP;
+      id_ex_reg <= '0;
     end else if (bubble_ex || flush_id_ex) begin
-      id_ex_reg <= ID_EX_NOP; // insert NOP bubble or flush wrong-path
+      id_ex_reg <= '0; // insert NOP bubble or flush wrong-path
     end else if (!stall_id) begin
       // Advance: latch decoded instruction into ID/EX
       id_ex_reg.valid       <= if_id_reg.valid;
@@ -703,13 +738,13 @@ module mips_pipeline
       id_ex_reg.jump_reg    <= id_jump_reg;
       id_ex_reg.is_jal      <= id_is_jal;
     end
-    // else: stall → hold current ID/EX value
+    // else: stall -> hold current ID/EX value
   end
 
-  // ── EX/MEM register ───────────────────────────────────────────────────────
+  // -- EX/MEM register --------------------------------------------------------
   always_ff @(posedge clk or posedge rst) begin
     if (rst) begin
-      ex_mem_reg <= EX_MEM_NOP;
+      ex_mem_reg <= '0;
     end else begin
       ex_mem_reg.valid         <= id_ex_reg.valid;
       ex_mem_reg.pc_plus4      <= id_ex_reg.pc_plus4;
@@ -730,10 +765,10 @@ module mips_pipeline
     end
   end
 
-  // ── MEM/WB register ───────────────────────────────────────────────────────
+  // -- MEM/WB register --------------------------------------------------------
   always_ff @(posedge clk or posedge rst) begin
     if (rst) begin
-      mem_wb_reg <= MEM_WB_NOP;
+      mem_wb_reg <= '0;
     end else begin
       mem_wb_reg.valid      <= ex_mem_reg.valid;
       // Select write-back data:
@@ -752,9 +787,9 @@ module mips_pipeline
     end
   end
 
-  // =========================================================================
+  // ===========================================================================
   // Ready/valid output signals (for external observation)
-  // =========================================================================
+  // ===========================================================================
   assign pipe_rv.if_valid  = if_id_reg.valid;
   assign pipe_rv.if_ready  = ~stall_if;
   assign pipe_rv.id_valid  = id_ex_reg.valid;
