@@ -1,0 +1,26 @@
+v 4
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/sim/pipeline_tb.vhd" "647d2a592c6530cf50a054a3a45aef59ea5dd6c4" "20260428230307.110":
+  entity pipeline_tb at 21( 1161) + 0 on 25;
+  architecture sim of pipeline_tb at 28( 1271) + 0 on 26;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/pipeline/mips_pipe_top.vhd" "e476eadc8d538dc54c9826ba6d855bafcb989892" "20260428230307.109":
+  entity mips_pipe_top at 10( 517) + 0 on 23;
+  architecture structural of mips_pipe_top at 36( 1349) + 0 on 24;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/decoder7seg.vhd" "0e53934f4176ce2ed0cf4add10b2e2c7d1fe8049" "20260428230307.108":
+  entity decoder7seg at 1( 0) + 0 on 21;
+  architecture bhv of decoder7seg at 10( 198) + 0 on 22;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/pipeline/mips_pipeline.vhd" "38d7da7f5a7f1d015d71de608abd2492e57f77ac" "20260428230307.108":
+  entity mips_pipeline at 16( 971) + 0 on 19;
+  architecture behavioral of mips_pipeline at 34( 1456) + 0 on 20;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/pipeline/pipe_dmem.vhd" "0267e7e6a5a1767fd22aedfbe948670f227fb010" "20260428230307.105":
+  entity pipe_dmem at 9( 493) + 0 on 17;
+  architecture behavioral of pipe_dmem at 29( 1084) + 0 on 18;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/pipeline/pipe_imem.vhd" "79ff761241e85a3a8e07be66c1662e4cb0ee38fa" "20260428230307.104":
+  entity pipe_imem at 9( 512) + 0 on 15;
+  architecture rom of pipe_imem at 20( 783) + 0 on 16;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/pipeline/pipe_regfile.vhd" "190f9e9bfa270a9a1f542f24c99942c7bd644f0a" "20260428230307.103":
+  entity pipe_regfile at 9( 506) + 0 on 13;
+  architecture behavioral of pipe_regfile at 29( 1091) + 0 on 14;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/pipeline/pipe_pkg.vhd" "faaa49af680adb20380b4ea7543689927a93b0fa" "20260428230307.102":
+  package pipe_pkg at 9( 456) + 0 on 12;
+file "/home/sanat/Pipelined-Dual-Edge-MIPS-Processor/" "VHDL/MIPS_package.vhd" "f5c13f38da5b517d004836621311f7ad3b7489b5" "20260428230307.101":
+  package mips_package at 1( 0) + 0 on 11;
